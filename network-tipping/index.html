@@ -12,19 +12,19 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #fff; color: var(--ink); font-family: Lato, Helvetica, Arial, sans-serif; overflow: hidden; }
   /* Everything scales with the frame, so the page fits a full slide or a small add-in box. */
-  .stage { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto; padding: 3.2vh 4vw 3vh; gap: 1.6vh; }
+  .stage { position: absolute; top: 0; left: 0; width: 1600px; height: 900px; transform-origin: 0 0; display: grid; grid-template-rows: auto 1fr auto; padding: 29px 64px 27px; gap: 14px; }
   .head { display: flex; justify-content: space-between; align-items: baseline; }
-  h1 { font-family: Raleway, Lato, sans-serif; font-weight: 700; font-size: 5.2vh; margin: 0; }
-  .note { font-size: 2.6vh; color: var(--mute); }
-  .main { display: grid; grid-template-columns: 1.15fr 1fr; gap: 3vw; min-height: 0; }
+  h1 { font-family: Raleway, Lato, sans-serif; font-weight: 700; font-size: 47px; margin: 0; }
+  .note { font-size: 23px; color: var(--mute); }
+  .main { display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; min-height: 0; }
   /* The canvas sits absolutely inside a box, so its pixel size can't grow the grid row (WebKit did). */
   .plot { position: relative; min-height: 0; }
   .plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .controls { display: flex; align-items: center; gap: 2vw; font-size: 2.8vh; }
+  .controls { display: flex; align-items: center; gap: 32px; font-size: 25px; }
   .controls label { white-space: nowrap; }
-  input[type=range] { flex: 1; accent-color: var(--a); height: 3vh; }
+  input[type=range] { flex: 1; accent-color: var(--a); height: 27px; }
   .val { font-weight: 700; min-width: 5ch; }
-  button { font: inherit; font-size: 2.6vh; padding: .6vh 1.4vw; border: 1px solid var(--line); background: #fff; border-radius: 4px; cursor: pointer; }
+  button { font: inherit; font-size: 23px; padding: 5px 22px; border: 1px solid var(--line); background: #fff; border-radius: 4px; cursor: pointer; }
   button:hover { border-color: #999; }
 </style>
 </head>
@@ -143,6 +143,28 @@ const qs = new URLSearchParams(location.search).get('s');
 if (qs !== null) { slider.value = qs; slider.dispatchEvent(new Event('input')); }
 restart();
 requestAnimationFrame(loop);
+
+// Lay out at a fixed 1600x900 and scale to the frame. In slideshow, PowerPoint for Mac can report a
+// window height far larger than what is visible, so the height is used only when it looks like 16:9.
+// Press D (or open with ?debug=1) to show the sizes the page sees.
+(function () {
+  const stage = document.querySelector('.stage');
+  const dbg = document.createElement('div');
+  dbg.style.cssText = 'position:fixed;left:4px;top:4px;font:14px monospace;background:#ffe;z-index:9;padding:2px 6px';
+  dbg.hidden = new URLSearchParams(location.search).get('debug') !== '1';
+  document.body.appendChild(dbg);
+  document.addEventListener('keydown', e => { if (e.key === 'd' || e.key === 'D') dbg.hidden = !dbg.hidden; });
+  function fit() {
+    const w = document.documentElement.clientWidth || innerWidth, h = document.documentElement.clientHeight || innerHeight;
+    let k = w / 1600;
+    const ratio = h / w;
+    if (ratio > 0.45 && ratio < 0.62) k = Math.min(k, h / 900);
+    const left = Math.max(0, (w - 1600 * k) / 2);
+    stage.style.transform = `translate(${left}px, 0) scale(${k})`;
+    dbg.textContent = `client ${w}x${h}  inner ${innerWidth}x${innerHeight}  dpr ${devicePixelRatio}  k ${k.toFixed(3)}`;
+  }
+  addEventListener('resize', fit); fit(); setInterval(fit, 1000);
+})();
 </script>
 </body>
 </html>
