@@ -13,7 +13,9 @@
   html, body { margin: 0; height: 100%; background: #fff; color: var(--ink); font-family: Lato, Helvetica, Arial, sans-serif; overflow: hidden; }
   .stage { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto; padding: 3.2vh 4vw 3vh; gap: 1.2vh; }
   h1 { font-family: Raleway, Lato, sans-serif; font-weight: 700; font-size: 5.2vh; margin: 0; }
-  canvas { width: 100%; height: 100%; display: block; }
+  /* The canvas sits absolutely inside a box, so its pixel size can't grow the grid row (WebKit did). */
+  .plot { position: relative; min-height: 0; }
+  .plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: 2vw; min-height: 7vh; }
   .caption { font-size: 3.6vh; transition: opacity .3s; }
   .nav { display: flex; align-items: center; gap: 1.2vw; }
@@ -29,7 +31,7 @@
 <body>
 <div class="stage">
   <h1>Why the better product can lose</h1>
-  <canvas id="cv" aria-label="Users joining platform A or platform B, step by step"></canvas>
+  <div class="plot"><canvas id="cv" aria-label="Users joining platform A or platform B, step by step"></canvas></div>
   <div class="foot">
     <div class="caption" id="cap"></div>
     <div class="nav">
