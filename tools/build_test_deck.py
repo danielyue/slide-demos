@@ -1,13 +1,14 @@
 # /// script
 # dependencies = ["python-pptx", "lxml"]
 # ///
-"""Build a four-slide test deck: native slide, live add-in slide, MP4 fallback, native slide.
+"""Build the test deck: native slide, live simulation, stepped demo, MP4 fallback, native slide.
 
-The live slide embeds the sideloaded content add-in (addin/manifest.xml) by writing the
+Each live slide embeds a sideloaded content add-in (addin/manifest-*.xml) by writing the
 webextension parts python-pptx has no API for. If PowerPoint does not pick it up, the
 slide shows the snapshot picture and the add-in can be inserted by hand instead.
 
-Usage: uv run tools/build_test_deck.py TEMPLATE.pptx SNAPSHOT.png VIDEO.mp4 OUT.pptx
+Usage: uv run tools/build_test_deck.py TEMPLATE.pptx ASSETS_DIR OUT.pptx
+ASSETS_DIR holds network-tipping.png, tipping-steps.png and network-tipping.mp4.
 """
 import copy
 import sys
@@ -21,7 +22,10 @@ from pptx.opc.packuri import PackURI
 from pptx.util import Pt
 
 ROOT = Path(__file__).resolve().parent.parent
-ADDIN_ID = "8c390e32-0980-46f6-8ad3-1bf81103aa77"  # <Id> in addin/manifest.xml
+ADDINS = {  # <Id> and <DisplayName> in addin/manifest-*.xml
+    "network-tipping": ("8c390e32-0980-46f6-8ad3-1bf81103aa77", "Slide Demo: Network tipping"),
+    "tipping-steps": ("3315f584-a0eb-49c6-94da-c480cac51e2d", "Slide Demo: Tipping in steps"),
+}
 NS = {
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -55,7 +59,8 @@ def text_slide(prs, title, bullets):
     return s
 
 
-def live_slide(prs, snapshot):
+def live_slide(prs, snapshot, demo, n, notes):
+    addin_id, addin_name = ADDINS[demo]
     s = prs.slides.add_slide(layout(prs, "BLANK"))
     w, h = prs.slide_width, prs.slide_height
     img_part, img_rid = s.part.get_or_add_image_part(snapshot)
@@ -63,13 +68,13 @@ def live_slide(prs, snapshot):
     # The webextension part: which add-in, plus a snapshot picture for viewers without it.
     webext_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <we:webextension xmlns:we="http://schemas.microsoft.com/office/webextensions/webextension/2010/11" xmlns:r="{NS['r']}" id="{{{str(uuid.uuid4()).upper()}}}">
-  <we:reference id="{ADDIN_ID}" version="1.0.0.0" store="developer" storeType="Registry"/>
+  <we:reference id="{addin_id}" version="1.0.0.0" store="developer" storeType="Registry"/>
   <we:alternateReferences/>
   <we:properties/>
   <we:bindings/>
   <we:snapshot r:embed="rId1"/>
 </we:webextension>""".encode()
-    webext = Part(PackURI("/ppt/webextensions/webextension1.xml"), CT_WEBEXT, s.part.package, webext_xml)
+    webext = Part(PackURI(f"/ppt/webextensions/webextension{n}.xml"), CT_WEBEXT, s.part.package, webext_xml)
     assert webext.relate_to(img_part, RT_IMAGE) == "rId1"
     we_rid = s.part.relate_to(webext, RT_WEBEXT)
 
@@ -79,7 +84,7 @@ def live_slide(prs, snapshot):
   <mc:Choice xmlns:we="http://schemas.microsoft.com/office/webextensions/webextension/2010/11" Requires="we">
     <p:graphicFrame>
       <p:nvGraphicFramePr>
-        <p:cNvPr id="10" name="Live demo: network tipping"/>
+        <p:cNvPr id="10" name="Live demo: {demo}"/>
         <p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr>
         <p:nvPr/>
       </p:nvGraphicFramePr>
@@ -94,7 +99,7 @@ def live_slide(prs, snapshot):
   <mc:Fallback>
     <p:pic>
       <p:nvPicPr>
-        <p:cNvPr id="10" name="Live demo: network tipping"/>
+        <p:cNvPr id="10" name="Live demo: {demo}"/>
         <p:cNvPicPr><a:picLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvPicPr>
         <p:nvPr/>
       </p:nvPicPr>
@@ -105,9 +110,9 @@ def live_slide(prs, snapshot):
   </mc:Fallback>
 </mc:AlternateContent>"""
     s.shapes._spTree.append(etree.fromstring(frame))
-    s.notes_slide.notes_text_frame.text = (
-        "Live add-in slide. If it shows a still picture, insert the add-in by hand: "
-        "Insert > Add-ins > My Add-ins > Slide Demo: Network tipping."
+    s.notes_slide.notes_text_frame.text = notes + (
+        "\n\nIf this slide shows a still picture, insert the add-in by hand: "
+        f"Insert > Add-ins > My Add-ins > {addin_name}."
     )
     return s
 
@@ -120,15 +125,24 @@ def video_slide(prs, video, poster):
     return s
 
 
-def main(template, snapshot, video, out):
+def main(template, assets, out):
+    a = Path(assets)
     prs = Presentation(template)
     drop_all_slides(prs)
     text_slide(prs, "Network effects", [
         "The value of joining depends on who else joins",
         "Telephones, payment systems, programming languages",
     ])
-    live_slide(prs, snapshot)
-    video_slide(prs, video, snapshot)
+    live_slide(prs, str(a / "network-tipping.png"), "network-tipping", 1,
+               "Live simulation. Move the slider; Restart reruns it.")
+    live_slide(prs, str(a / "tipping-steps.png"), "tipping-steps", 2,
+               "Click the arrow (or, once the slide has focus, the clicker) for each step:\n"
+               "1. Early users choose on quality, so most pick B\n"
+               "2. A buys a lead with a launch promotion\n"
+               "3. New users follow the installed base\n"
+               "4. The market tips; some B users switch\n"
+               "One more click moves to the next slide.")
+    video_slide(prs, str(a / "network-tipping.mp4"), str(a / "network-tipping.png"))
     text_slide(prs, "When does the better product lose?", [
         "Strong network effects and an early lead",
         "What would let B catch up?",
@@ -138,4 +152,4 @@ def main(template, snapshot, video, out):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:5])
+    main(*sys.argv[1:4])
