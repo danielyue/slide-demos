@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Network effects and tipping</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Raleway:wght@700&display=swap" rel="stylesheet">
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  :root { --a: #1f4e8c; --b: #c46a1f; --ink: #111; --mute: #666; --line: #d8d8d8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #fff; color: var(--ink); font-family: Lato, Helvetica, Arial, sans-serif; overflow: hidden; }
+  /* Everything scales with the frame, so the page fits a full slide or a small add-in box. */
+  .stage { position: absolute; inset: 0; display: grid; grid-template-rows: auto 1fr auto; padding: 3.2vh 4vw 3vh; gap: 1.6vh; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; }
+  h1 { font-family: Raleway, Lato, sans-serif; font-weight: 700; font-size: 5.2vh; margin: 0; }
+  .note { font-size: 2.6vh; color: var(--mute); }
+  .main { display: grid; grid-template-columns: 1.15fr 1fr; gap: 3vw; min-height: 0; }
+  canvas { width: 100%; height: 100%; display: block; }
+  .controls { display: flex; align-items: center; gap: 2vw; font-size: 2.8vh; }
+  .controls label { white-space: nowrap; }
+  input[type=range] { flex: 1; accent-color: var(--a); height: 3vh; }
+  .val { font-weight: 700; min-width: 5ch; }
+  button { font: inherit; font-size: 2.6vh; padding: .6vh 1.4vw; border: 1px solid var(--line); background: #fff; border-radius: 4px; cursor: pointer; }
+  button:hover { border-color: #999; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="head">
+    <h1>Network effects and tipping</h1>
+    <div class="note">B is slightly better. A starts with 60% of users.</div>
+  </div>
+  <div class="main">
+    <canvas id="users" aria-label="Users choosing between platform A and platform B"></canvas>
+    <canvas id="share" aria-label="Platform A's share of users over time"></canvas>
+  </div>
+  <div class="controls">
+    <label for="s">Strength of network effects</label>
+    <input id="s" type="range" min="0" max="3" step="0.1" value="1.5">
+    <span class="val" id="sv">1.5</span>
+    <button id="restart">Restart</button>
+  </div>
+</div>
+<script>
+// Inside PowerPoint the page runs as a content add-in; outside it, office.js is inert.
+if (window.Office && Office.onReady) { try { Office.onReady(() => {}); } catch (e) {} }
+
+const N = 120, QA = 0, QB = 0.15, BETA = 4, START_A = 0.6, HISTORY = 400;
+const usersCv = document.getElementById('users'), shareCv = document.getElementById('share');
+const slider = document.getElementById('s'), sv = document.getElementById('sv');
+const css = getComputedStyle(document.documentElement);
+const COL = { a: css.getPropertyValue('--a').trim(), b: css.getPropertyValue('--b').trim(),
+              ink: '#111', mute: '#666', line: '#d8d8d8' };
+let users = [], hist = [], strength = parseFloat(slider.value);
+
+function fit(cv) {
+  const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, r.width * d); cv.height = Math.max(1, r.height * d);
+  const ctx = cv.getContext('2d'); ctx.setTransform(d, 0, 0, d, 0, 0);
+  return { ctx, w: r.width, h: r.height };
+}
+
+function restart() {
+  users = Array.from({ length: N }, (_, i) => ({ onA: i < N * START_A, x: null, y: null }));
+  hist = [shareA()];
+}
+function shareA() { return users.filter(u => u.onA).length / N; }
+
+// Each step a few users reconsider. Utility of A minus B = quality gap + strength x (share gap).
+function step() {
+  for (let k = 0; k < 2; k++) {
+    const u = users[Math.floor(Math.random() * N)];
+    const sA = shareA();
+    const diff = (QA - QB) + strength * (sA - (1 - sA));
+    u.onA = Math.random() < 1 / (1 + Math.exp(-BETA * diff));
+  }
+  hist.push(shareA());
+  if (hist.length > HISTORY) hist.shift();
+}
+
+// Each user has the same seat on both sides (A left, B right), so a switch is one dot gliding across.
+function targets(w, h) {
+  const boxW = w * 0.44, top = h * 0.16, cols = 10, cell = Math.min(boxW / cols, (h * 0.8) / 12);
+  return users.map((u, i) => {
+    const c = i % cols, r = Math.floor(i / cols);
+    const x0 = u.onA ? w * 0.03 : w * 0.53;
+    return { x: x0 + (c + 0.5) * cell, y: top + (r + 0.5) * cell, r: cell * 0.34 };
+  });
+}
+
+function drawUsers() {
+  const { ctx, w, h } = fit(usersCv);
+  ctx.clearRect(0, 0, w, h);
+  const t = targets(w, h), fs = Math.max(11, h * 0.06);
+  const nA = users.filter(u => u.onA).length;
+  ctx.font = `700 ${fs}px Lato, sans-serif`; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = COL.a; ctx.fillText(`Platform A  ${nA}`, w * 0.03, h * 0.1);
+  ctx.fillStyle = COL.b; ctx.fillText(`Platform B  ${N - nA}`, w * 0.53, h * 0.1);
+  users.forEach((u, i) => {
+    if (u.x === null) { u.x = t[i].x; u.y = t[i].y; }
+    u.x += (t[i].x - u.x) * 0.12; u.y += (t[i].y - u.y) * 0.12;
+    ctx.beginPath(); ctx.arc(u.x, u.y, t[i].r, 0, Math.PI * 2);
+    ctx.fillStyle = u.onA ? COL.a : COL.b; ctx.fill();
+  });
+}
+
+function drawShare() {
+  const { ctx, w, h } = fit(shareCv);
+  ctx.clearRect(0, 0, w, h);
+  const fs = Math.max(10, h * 0.05), L = fs * 3.2, R = w - fs, T = h * 0.12, B = h - fs * 2.2;
+  ctx.font = `${fs}px Lato, sans-serif`; ctx.fillStyle = COL.mute;
+  ctx.fillText("A's share of users", L, T - fs * 0.8);
+  ctx.strokeStyle = COL.line; ctx.lineWidth = 1;
+  [0, 0.5, 1].forEach(v => {
+    const y = B - v * (B - T);
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke();
+    ctx.fillText(`${v * 100}%`, 0, y + fs * 0.35);
+  });
+  ctx.fillText('time', R - fs * 2.4, B + fs * 1.6);
+  ctx.beginPath();
+  hist.forEach((v, i) => {
+    const x = L + (i / (HISTORY - 1)) * (R - L), y = B - v * (B - T);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.strokeStyle = COL.a; ctx.lineWidth = Math.max(2, h * 0.008); ctx.stroke();
+}
+
+let last = 0;
+function loop(ts) {
+  if (ts - last > 40) { step(); last = ts; }
+  drawUsers(); drawShare();
+  requestAnimationFrame(loop);
+}
+
+slider.addEventListener('input', () => { strength = parseFloat(slider.value); sv.textContent = strength.toFixed(1); });
+document.getElementById('restart').addEventListener('click', restart);
+// ?s=0.5 sets the starting strength, so one page can serve several slides.
+const qs = new URLSearchParams(location.search).get('s');
+if (qs !== null) { slider.value = qs; slider.dispatchEvent(new Event('input')); }
+restart();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

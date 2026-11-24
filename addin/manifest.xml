@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:type="ContentApp">
+  <Id>8c390e32-0980-46f6-8ad3-1bf81103aa77</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Daniel Yue</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Slide Demo: Network tipping"/>
+  <Description DefaultValue="Live network-effects simulation for a teaching slide."/>
+  <IconUrl DefaultValue="https://danielyue.github.io/slide-demos/addin/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://danielyue.github.io/slide-demos/addin/icon-64.png"/>
+  <SupportUrl DefaultValue="https://danielyue.github.io/slide-demos/"/>
+  <AppDomains>
+    <AppDomain>https://danielyue.github.io</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Presentation"/>
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://danielyue.github.io/slide-demos/network-tipping/"/>
+    <RequestedWidth>960</RequestedWidth>
+    <RequestedHeight>540</RequestedHeight>
+  </DefaultSettings>
+  <Permissions>ReadDocument</Permissions>
+  <AllowSnapshot>true</AllowSnapshot>
+</OfficeApp>
