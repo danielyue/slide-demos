@@ -37,6 +37,10 @@ NS = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
 }
+# Which PowerPoint resolves the add-in: "desktop" (Mac sideload, storeType Registry) or "web" (uploaded in
+# the browser, uploadfiledevcatalog). Each honours only its own reference when it is listed first (tested
+# 2026-11-24), so a deck is built for one or the other; tools/retarget.py flips an existing deck.
+TARGET = "desktop"
 RT_WEBEXT = "http://schemas.microsoft.com/office/2011/relationships/webextension"
 RT_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 CT_WEBEXT = "application/vnd.ms-office.webextension+xml"
@@ -70,6 +74,7 @@ def live_slide(prs, snapshot, demo, n, notes, props=None):
     Two references: "Registry" is how desktop PowerPoint names a sideloaded add-in, "uploadfiledevcatalog"
     how PowerPoint for the web names one uploaded in the browser; listing both lets one file work in each."""
     addin_id, addin_name = ADDINS[demo]
+    first, second = ("uploadfiledevcatalog", "Registry") if TARGET == "web" else ("Registry", "uploadfiledevcatalog")
     import json
     from xml.sax.saxutils import quoteattr
     props_xml = "".join(f'<we:property name={quoteattr(k)} value={quoteattr(json.dumps(v))}/>' for k, v in (props or {}).items())
@@ -80,9 +85,10 @@ def live_slide(prs, snapshot, demo, n, notes, props=None):
     # The webextension part: which add-in, plus a snapshot picture for viewers without it.
     webext_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <we:webextension xmlns:we="http://schemas.microsoft.com/office/webextensions/webextension/2010/11" xmlns:r="{NS['r']}" id="{{{str(uuid.uuid4()).upper()}}}">
-  <we:reference id="{addin_id}" version="1.0.0.0" store="developer" storeType="Registry"/>
+  <we:reference id="{addin_id}" version="1.0.0.0" store="developer" storeType="{first}"/>
   <we:alternateReferences>
-    <we:reference id="{addin_id}" version="1.0.0.0" store="developer" storeType="uploadfiledevcatalog"/>
+    <we:reference id="{addin_id}" version="1.0.0.0" store="developer" storeType="{second}"/>
+    <we:reference id="{addin_id}" version="1.0.0.0" store="" storeType="omex"/>
   </we:alternateReferences>
   <we:properties>{props_xml}</we:properties>
   <we:bindings/>
