@@ -6,7 +6,11 @@
 <title>Why the better product can lose</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Raleway:wght@700&display=swap" rel="stylesheet">
-<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<script>
+  // Office.js only when PowerPoint loads this page directly. Inside the Slide Demos viewer (frame named
+  // "slide-demos-viewer") it must not load: in a frame it blanks the page. The viewer handles slide changes.
+  if (window.name !== 'slide-demos-viewer') document.write('<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"><\/script>');
+</script>
 <style>
   :root { --a: #1f4e8c; --b: #c46a1f; --hi: #e0b400; --ink: #111; --mute: #666; --line: #d8d8d8; }
   * { box-sizing: border-box; }
@@ -121,6 +125,8 @@ function current(u, now) {
 }
 
 function officeNav(dir) {
+  // Inside the Slide Demos viewer the page is in an iframe: ask the viewer to change slide.
+  if (window.name === 'slide-demos-viewer') { window.parent.postMessage({ type: 'slide-demos:nav', dir }, '*'); return; }
   try {
     if (window.Office && Office.context && Office.context.document && Office.context.document.goToByIdAsync) {
       Office.context.document.goToByIdAsync(dir > 0 ? Office.Index.Next : Office.Index.Previous, Office.GoToType.Index, () => {});

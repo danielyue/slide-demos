@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stepped explainer template</title>
+<!-- Template for a slide that builds up one click at a time (copy with tools/new_demo.sh).
+     Edit only the three marked blocks: TITLE, CAPTIONS, and DRAW. Everything below DRAW is the engine:
+     reveal by step, line draw-in, arrows/keys/clicker, slide change at the ends, 1600x900 fit, D readout.
+     Rules learned on 2026-11-24 (see ~/.claude/skills/slides/live/page-recipe.md):
+     fixed 1600x900 stage scaled to the frame; no vh/vw; SVG or absolutely positioned canvas; test in WebKit. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Raleway:wght@700&display=swap" rel="stylesheet">
+<script>
+  // Office.js only when PowerPoint loads this page directly. Inside the Slide Demos viewer (frame named
+  // "slide-demos-viewer") it must not load: in a frame it blanks the page. The viewer handles slide changes.
+  if (window.name !== 'slide-demos-viewer') document.write('<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"><\/script>');
+</script>
+<style>
+  :root { --a: #0F6FA8; --b: #C8450F; --ctx: #8A8A8A; --ink: #1c1b19; --muted: #6b6862; --line: #e4e0d8; --win: #EFEDE6; --hi: #e0b400; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #fff; color: var(--ink); font-family: Lato, Helvetica, Arial, sans-serif; overflow: hidden; }
+  .stage { position: absolute; top: 0; left: 0; width: 1600px; height: 900px; transform-origin: 0 0; display: grid; grid-template-rows: auto 1fr auto; padding: 26px 64px 24px; gap: 6px; }
+  h1 { font-family: Raleway, Lato, sans-serif; font-weight: 700; font-size: 44px; margin: 0; }
+  .fig { position: relative; min-height: 0; }
+  .fig svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 32px; min-height: 60px; }
+  .caption { font-size: 30px; }
+  .nav { display: flex; align-items: center; gap: 18px; flex: none; }
+  .nav button { font: inherit; font-size: 30px; width: 56px; height: 56px; border: 1px solid #d8d8d8; background: #fff; border-radius: 50%; cursor: pointer; color: var(--ink); line-height: 1; }
+  .dots { display: flex; gap: 10px; }
+  .dots span { width: 12px; height: 12px; border-radius: 50%; background: #d8d8d8; }
+  .dots span.on { background: var(--ink); }
+  body.nocap .caption { visibility: hidden; }
+  [data-s] { transition: opacity .5s ease; }
+  [data-s].hide { opacity: 0; }
+  [data-s].past { opacity: .32; }
+  path.draw { transition: stroke-dashoffset 1.6s ease, opacity .5s ease; }
+  text { font-family: Lato, Helvetica, Arial, sans-serif; fill: var(--ink); }
+  .tick { font-size: 17px; fill: var(--muted); }
+  .lab { font-size: 20px; }
+  .ptitle { font-size: 22px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <h1 id="title"></h1>
+  <div class="fig"><svg id="svg" viewBox="0 0 1472 760" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div class="foot">
+    <div class="caption" id="cap"></div>
+    <div class="nav">
+      <button id="prev" aria-label="Previous step">&#8249;</button>
+      <div class="dots" id="dots"></div>
+      <button id="next" aria-label="Next step">&#8250;</button>
+    </div>
+  </div>
+</div>
+<script>
+/* ===== TITLE ===== */
+const TITLE = 'A stepped explainer';
+
+/* ===== CAPTIONS: one per click; step 0 is what shows first. Keep them terse. ===== */
+const CAPTIONS = [
+  'Start with the frame',
+  'The first group appears',
+  'The second group is larger',
+  'The line shows the trend',
+  'The takeaway, said once',
+];
+
+/* ===== DRAW: build the SVG (1472 x 760 units). grp(s) appears on step s and fades after it;
+   grp(s, until) stays bright through step `until`. A path with class "draw" draws itself in. ===== */
+function DRAW() {
+  const x0 = 120, x1 = 1350, y0 = 680, y1 = 120, vals = [0.3, 0.45, 0.7, 0.85];
+  const bx = i => x0 + (i + 0.5) * (x1 - x0) / vals.length, by = v => y0 + v * (y1 - y0);
+  let g = grp(0, 99);
+  [0, 0.5, 1].forEach(v => {
+    el('line', { x1: x0, x2: x1, y1: by(v), y2: by(v), stroke: 'var(--line)' }, g);
+    el('text', { x: x0 - 12, y: by(v) + 6, class: 'tick', 'text-anchor': 'end' }, g, Math.round(v * 100) + '%');
+  });
+  [[1, [0, 1]], [2, [2, 3]]].forEach(([s, idx]) => {
+    g = grp(s, 99);
+    idx.forEach(i => {
+      el('rect', { x: bx(i) - 90, y: by(vals[i]), width: 180, height: y0 - by(vals[i]), fill: s === 1 ? 'var(--a)' : 'var(--b)' }, g);
+      el('text', { x: bx(i), y: by(vals[i]) - 12, class: 'lab', 'text-anchor': 'middle' }, g, Math.round(vals[i] * 100) + '%');
+    });
+  });
+  g = grp(3, 99);
+  el('path', { d: 'M' + vals.map((v, i) => `${bx(i)},${by(v) - 40}`).join('L'), fill: 'none', stroke: 'var(--ink)', 'stroke-width': 3, class: 'draw' }, g);
+  g = grp(4);
+  el('rect', { x: 140, y: 130, width: 420, height: 70, rx: 6, fill: '#fff', stroke: 'var(--hi)', 'stroke-width': 2 }, g);
+  el('text', { x: 160, y: 175, class: 'lab', style: 'font-weight:700' }, g, 'One sentence the audience keeps');
+}
+
+/* ===== Engine (no edits needed below) ===== */
+if (window.Office && Office.onReady) { try { Office.onReady(() => {}); } catch (e) {} }
+const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('svg');
+function el(tag, attrs, parent = svg, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  parent.appendChild(e); return e;
+}
+function grp(s, until) { const g = el('g', { 'data-s': s }); if (until !== undefined) g.dataset.until = until; return g; }
+document.getElementById('title').textContent = TITLE;
+DRAW();
+svg.querySelectorAll('path.draw').forEach(p => { const L = p.getTotalLength(); p.style.strokeDasharray = L; p.style.strokeDashoffset = L; });
+
+const cap = document.getElementById('cap'), dotsEl = document.getElementById('dots');
+const qs = new URLSearchParams(location.search);
+if (qs.get('captions') === '0') document.body.classList.add('nocap');
+let step = 0;
+function show(k) {
+  step = k;
+  svg.querySelectorAll('[data-s]').forEach(g => {
+    const s = +g.dataset.s, until = g.dataset.until !== undefined ? +g.dataset.until : s;
+    g.classList.toggle('hide', k < s);
+    g.classList.toggle('past', k > until);
+    g.querySelectorAll('path.draw').forEach(p => { p.style.strokeDashoffset = k < s ? p.getTotalLength() : 0; });
+  });
+  cap.textContent = CAPTIONS[k];
+  dotsEl.innerHTML = CAPTIONS.map((_, j) => `<span class="${j === k ? 'on' : ''}"></span>`).join('');
+}
+function officeNav(dir) {
+  // Inside the Slide Demos viewer the page is in an iframe: ask the viewer to change slide.
+  if (window.name === 'slide-demos-viewer') { window.parent.postMessage({ type: 'slide-demos:nav', dir }, '*'); return; }
+  try {
+    if (window.Office && Office.context && Office.context.document && Office.context.document.goToByIdAsync)
+      Office.context.document.goToByIdAsync(dir > 0 ? Office.Index.Next : Office.Index.Previous, Office.GoToType.Index, () => {});
+  } catch (e) {}
+}
+const next = () => step < CAPTIONS.length - 1 ? show(step + 1) : officeNav(1);
+const prev = () => step > 0 ? show(step - 1) : officeNav(-1);
+document.getElementById('next').addEventListener('click', next);
+document.getElementById('prev').addEventListener('click', prev);
+document.addEventListener('keydown', e => {
+  if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); next(); }
+  if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); prev(); }
+});
+show(Math.min(CAPTIONS.length - 1, Math.max(0, parseInt(qs.get('step') || '0', 10) || 0)));
+
+(function () {
+  const stage = document.querySelector('.stage'), dbg = document.createElement('div');
+  dbg.style.cssText = 'position:fixed;left:4px;top:4px;font:14px monospace;background:#ffe;z-index:9;padding:2px 6px';
+  dbg.hidden = qs.get('debug') !== '1'; document.body.appendChild(dbg);
+  document.addEventListener('keydown', e => { if (e.key === 'd' || e.key === 'D') dbg.hidden = !dbg.hidden; });
+  function fit() {
+    const w = document.documentElement.clientWidth || innerWidth, h = document.documentElement.clientHeight || innerHeight;
+    let k = w / 1600; const r = h / w;
+    if (r > 0.45 && r < 0.62) k = Math.min(k, h / 900);
+    stage.style.transform = `translate(${Math.max(0, (w - 1600 * k) / 2)}px, 0) scale(${k})`;
+    dbg.textContent = `client ${w}x${h}  inner ${innerWidth}x${innerHeight}  dpr ${devicePixelRatio}  k ${k.toFixed(3)}`;
+  }
+  addEventListener('resize', fit); fit(); setInterval(fit, 1000);
+})();
+</script>
+</body>
+</html>

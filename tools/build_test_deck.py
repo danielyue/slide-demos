@@ -25,7 +25,13 @@ ROOT = Path(__file__).resolve().parent.parent
 ADDINS = {  # <Id> and <DisplayName> in addin/manifest-*.xml
     "network-tipping": ("8c390e32-0980-46f6-8ad3-1bf81103aa77", "Slide Demo: Network tipping"),
     "tipping-steps": ("3315f584-a0eb-49c6-94da-c480cac51e2d", "Slide Demo: Tipping in steps"),
+    "viewer": ("157ce4b8-984b-4227-9259-e47e662996de", "Slide Demos (viewer)"),  # the one to use from now on
 }
+
+
+def viewer_slide(prs, snapshot, url, n, notes=""):
+    """A live slide through the Slide Demos viewer: the page address is stored in the slide itself."""
+    return live_slide(prs, snapshot, "viewer", n, notes, props={"url": url})
 NS = {
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -59,8 +65,14 @@ def text_slide(prs, title, bullets):
     return s
 
 
-def live_slide(prs, snapshot, demo, n, notes):
+def live_slide(prs, snapshot, demo, n, notes, props=None):
+    """props: add-in settings stored in the slide (Office.context.document.settings), e.g. {"url": ...}.
+    Two references: "Registry" is how desktop PowerPoint names a sideloaded add-in, "uploadfiledevcatalog"
+    how PowerPoint for the web names one uploaded in the browser; listing both lets one file work in each."""
     addin_id, addin_name = ADDINS[demo]
+    import json
+    from xml.sax.saxutils import quoteattr
+    props_xml = "".join(f'<we:property name={quoteattr(k)} value={quoteattr(json.dumps(v))}/>' for k, v in (props or {}).items())
     s = prs.slides.add_slide(layout(prs, "BLANK"))
     w, h = prs.slide_width, prs.slide_height
     img_part, img_rid = s.part.get_or_add_image_part(snapshot)
@@ -69,8 +81,10 @@ def live_slide(prs, snapshot, demo, n, notes):
     webext_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <we:webextension xmlns:we="http://schemas.microsoft.com/office/webextensions/webextension/2010/11" xmlns:r="{NS['r']}" id="{{{str(uuid.uuid4()).upper()}}}">
   <we:reference id="{addin_id}" version="1.0.0.0" store="developer" storeType="Registry"/>
-  <we:alternateReferences/>
-  <we:properties/>
+  <we:alternateReferences>
+    <we:reference id="{addin_id}" version="1.0.0.0" store="developer" storeType="uploadfiledevcatalog"/>
+  </we:alternateReferences>
+  <we:properties>{props_xml}</we:properties>
   <we:bindings/>
   <we:snapshot r:embed="rId1"/>
 </we:webextension>""".encode()

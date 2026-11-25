@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slide Demos viewer</title>
+<!-- One PowerPoint content add-in for every live slide. Each slide's copy of the add-in stores the page it
+     shows in its own settings ("url"), so a new demo is just a new web page: nothing to install again.
+     Demos ask for the next or previous slide with postMessage({type: 'slide-demos:nav', dir: 1 | -1}).
+     Outside PowerPoint, ?url=... previews a page in the viewer. -->
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #fff; font-family: Lato, Helvetica, Arial, sans-serif; overflow: hidden; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #gear { position: absolute; top: 6px; right: 6px; z-index: 5; font: 13px Lato, sans-serif; padding: 4px 8px;
+          background: rgba(255,255,255,.9); border: 1px solid #ccc; border-radius: 4px; cursor: pointer; opacity: 0; transition: opacity .2s; }
+  body.edit:hover #gear { opacity: 1; }
+  #picker { position: absolute; inset: 0; padding: 4% 6%; overflow: auto; background: #fff; z-index: 6; font-size: 15px; }
+  #picker h2 { margin: 0 0 .6em; font-size: 20px; }
+  #picker ul { padding: 0; list-style: none; }
+  #picker li { margin: .3em 0; }
+  #picker li button { font: inherit; background: none; border: 0; color: #0F6FA8; cursor: pointer; padding: 0; text-align: left; }
+  #picker input { width: 70%; font: inherit; padding: 4px 6px; }
+  #picker .row { margin-top: 1em; display: flex; gap: 8px; align-items: center; }
+  #picker .note { color: #666; font-size: 13px; margin-top: 1em; }
+</style>
+</head>
+<body>
+<button id="gear" hidden>Change page</button>
+<div id="picker" hidden>
+  <h2>Show a live page on this slide</h2>
+  <ul id="list"></ul>
+  <div class="row"><input id="url" type="url" placeholder="https://..."> <button id="go">Show</button> <button id="cancel">Cancel</button></div>
+  <div class="note">Any https page works. Private pages on this Mac use https://mdr.dny/raw/Users/... (works only on this MacBook).</div>
+</div>
+<script>
+const qs = new URLSearchParams(location.search);
+let frame = null, inOffice = false;
+
+function show(url) {
+  document.getElementById('picker').hidden = true;
+  if (!frame) { frame = document.createElement('iframe'); frame.id = 'demo'; frame.name = 'slide-demos-viewer'; frame.allow = 'fullscreen; autoplay'; document.body.appendChild(frame); }
+  if (frame.src !== url) frame.src = url;
+}
+
+async function picker() {
+  const box = document.getElementById('picker'), list = document.getElementById('list');
+  box.hidden = false;
+  try {
+    const demos = await (await fetch(new URL('../demos.json', location.href))).json();
+    list.innerHTML = '';
+    demos.forEach(d => {
+      const li = document.createElement('li'), b = document.createElement('button');
+      b.textContent = d.title; b.onclick = () => choose(new URL(d.path, new URL('../', location.href)).href);
+      li.appendChild(b); list.appendChild(li);
+    });
+  } catch (e) { list.innerHTML = '<li>(demo list unavailable)</li>'; }
+  document.getElementById('cancel').hidden = !frame;
+}
+
+function choose(url) {
+  if (!/^(https:\/\/|http:\/\/(127\.0\.0\.1|localhost)[:/])/.test(url)) return;  // https, or a local test server
+  if (inOffice) {
+    Office.context.document.settings.set('url', url);
+    Office.context.document.settings.saveAsync(() => {});
+  }
+  show(url);
+}
+
+document.getElementById('go').onclick = () => choose(document.getElementById('url').value.trim());
+document.getElementById('cancel').onclick = () => { document.getElementById('picker').hidden = true; };
+document.getElementById('gear').onclick = picker;
+
+// Demos ask the viewer to change slide; only messages from the page this slide shows count.
+window.addEventListener('message', e => {
+  if (!frame || e.source !== frame.contentWindow || !e.data || e.data.type !== 'slide-demos:nav') return;
+  try {
+    Office.context.document.goToByIdAsync(e.data.dir > 0 ? Office.Index.Next : Office.Index.Previous, Office.GoToType.Index, () => {});
+  } catch (err) {}
+});
+
+// "Change page" shows only while editing, never in a slideshow.
+function setView(view) { document.body.classList.toggle('edit', view === 'edit'); document.getElementById('gear').hidden = view !== 'edit'; }
+
+let started = false;
+function start() {
+  if (started) return; started = true;
+  const saved = inOffice ? Office.context.document.settings.get('url') : null;
+  const url = saved || qs.get('url');
+  url ? show(url) : picker();
+}
+
+if (window.Office && Office.onReady) {
+  Office.onReady(info => {
+    inOffice = !!(info && info.host);
+    if (inOffice) {
+      try {
+        Office.context.document.getActiveViewAsync(r => setView(r.value));
+        Office.context.document.addHandlerAsync(Office.EventType.ActiveViewChanged, a => setView(a.activeView));
+      } catch (e) { setView('edit'); }
+    }
+    start();
+  });
+  // Outside Office (a plain browser preview) onReady can be slow or silent; don't wait on it forever.
+  setTimeout(start, 2500);
+} else { start(); }
+</script>
+</body>
+</html>
